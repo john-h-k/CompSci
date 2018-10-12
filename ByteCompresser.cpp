@@ -12,7 +12,7 @@
 */
 int main() {
 
-  #define LENGTH 200 // EDITABLE
+  #define LENGTH 1024 * 10 * 8 // EDITABLE
   #define PROPORTION 0.97 // EDITABLE
 
   // If there are more than 20 bytes, don't bother displaying them as it will be too large to read (if LARGE is defined later it will not print them)
