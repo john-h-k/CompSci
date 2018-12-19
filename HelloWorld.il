@@ -2,9 +2,9 @@
 .assembly HelloWorld {}
 .module HelloWorld.exe
 
-.class abstract sealed Hello.Program extends [mscorlib]System.Object
+.class private abstract sealed auto ansi beforefieldinit Hello.Program extends [mscorlib]System.Object
 {
-    .method static void Complain() cil managed
+    .method private static hidebysig void Complain() cil managed
     {
         ldstr "Not a valid base 10 number"
         call void [mscorlib]System.Console::WriteLine(string)
@@ -13,16 +13,17 @@
         ret
     }
 
-    .method static void Main() cil managed
+    .method private static hidebysig void Main() cil managed
     {
         .entrypoint
 
         // Initialize 2 strings and 2 integers
-        .locals init (
-            string firstRequest,
-            string secondRequest,
-            int32 firstNumber,
-            int32 secondNumber
+        .locals init 
+        (
+            [0] string firstRequest,
+            [1] string secondRequest,
+            [2] int32 firstNumber,
+            [3] int32 secondNumber
         )
 
         // Load 2 strings into the string references
@@ -46,6 +47,11 @@
         ldloca.s secondNumber
         call bool [mscorlib]System.Int32::TryParse(string, int32&)
         brfalse.s COMPLAIN
+
+
+        // Print
+        ldstr "The sum of those 2 numbers is: "
+        call void [mscorlib]System.Console::Write(string)
 
         // Load the 2 numbers to the stack, add them, and print them
         ldloc firstNumber
