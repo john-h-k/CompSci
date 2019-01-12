@@ -1,75 +1,157 @@
+// ObjectivelyBadC.c : This file contains the 'main' function. Program execution begins and ends there.
+//
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <assert.h>
+
+#define CLASS_HEADER Base header;
+#define CLASS_INHERITS(PARENT) PARENT parent;
+#define BASE(X) (*(Base*)&X)
+#define BASE_PTR(X) ((Base*)&X)
+#define STUB(X) ((Stub)X)
+#define STUB_PTR(X) ((Stub*)&X)
+#define UP_CAST(X, TYPE) (*(TYPE*)&X)
+#define UP_CAST_PTR(X, TYPE) ((TYPE*)&X)
+#define REFLECTIVE_FUNC(F)
+#define ANY_ARGS
+
+#define CREATE_INIT_NO_PARENT(X, METHOD_NUM) ConstructVTableForTypeNoParent(BASE_PTR(X), METHOD_NUM);
 
 typedef int slot;
-typedef void (*Stub) (void);
+typedef void(*Stub) (ANY_ARGS);
 typedef struct _VTable
 {
-  size_t size;
-  Stub* methods;
+	size_t size;
+	Stub* methods;
 } VTable;
 
-typedef struct _Class
+typedef struct _Base
 {
-  VTable table;
-} Class;
+	VTable table;
+} Base;
 
-void ConstructVTableForTypeNoParent(Class* pClass, size_t numMethods)
+void ConstructVTableForTypeNoParent(Base* pClass, size_t numMethods)
 {
-  pClass->table.size = 0;
-  pClass->table.methods = (Stub*)malloc(numMethods * sizeof(Stub));
+	pClass->table.size = numMethods;
+	pClass->table.methods = (Stub*)malloc(numMethods * sizeof(Stub));
 }
 
-void ConstructVTableForTypeWithParent(Class* pChild, Class* pParent, size_t newNumMethods)
+void ConstructVTableForTypeWithParent(Base* pEmptyChild, Base* pParentType, size_t newNumMethods, size_t sizeOfParent)
 {
-  size_t size = pParent->table.size;
-  ConstructVTableForTypeNoParent(pChild, newNumMethods + size);
-  memcpy(pParent->table.methods, pChild->table.methods, size * sizeof(Stub));
+	const size_t size = pParentType->table.size + newNumMethods;
+	ConstructVTableForTypeNoParent(pEmptyChild, size);
+	memcpy(pEmptyChild, pParentType, sizeOfParent);
+	pEmptyChild->table.size = size;
 }
 
-void SetOrOverrideMethod(Class* pType, slot methodSlot, void* pNewMethodPtr)
+void DeconstructVTable(Base* pClass)
 {
-  pType->table.methods[methodSlot] = (Stub)pNewMethodPtr;
-  pType->table.size++;
+	free(pClass->table.methods);
 }
 
-void CallVirtual(Class* pClass, slot methodSlot)
+
+void SetOrOverrideMethod(Base* pType, slot methodSlot, Stub pNewMethodPtr)
 {
-  pClass->table.methods[methodSlot]();
+	pType->table.methods[methodSlot] = (Stub)pNewMethodPtr;
+}
+
+void SetOrOverrideMethodAndBind(Base* pType, slot methodSlot, Stub pNewMethodPtr, Stub* ppFunc)
+{
+	pType->table.methods[methodSlot] = pNewMethodPtr;
+	*ppFunc = pType->table.methods[methodSlot];
+}
+
+void SetOrOverrideMethodAndBindMirror(Base* pType, slot methodSlot, Stub pNewMethodPtr, Stub* ppFunc, Stub* ppChildBind)
+{
+	pType->table.methods[methodSlot] = pNewMethodPtr;
+	*ppFunc = pType->table.methods[methodSlot];
+	*ppChildBind = pType->table.methods[methodSlot];
+	
+}
+
+void CallVirtualNoArgs(Base* pClass, slot methodSlot)
+{
+	pClass->table.methods[methodSlot]();
 }
 
 typedef struct _Parent
 {
-  VTable vtb;
+	CLASS_HEADER
+	void(*speak)(struct _Parent p);
+	int age;
 } Parent;
 
 typedef struct _Child
 {
-  VTable vtb;
+	CLASS_INHERITS(Parent)
+	REFLECTIVE_FUNC("Parent.speak") void(*speak)(struct _Child p);
 } Child;
 
-void PrintParent()
+typedef struct _Derived
 {
-  printf("Parent\n");
+	CLASS_INHERITS(Child)
+	REFLECTIVE_FUNC("Child.speak") void(*speak)(struct _Derived p);
+} Derived;
+
+void PrintParent(Parent p)
+{
+	printf("Parent age: %d\n", p.age);
 }
 
-void PrintChild()
+void PrintChild(Parent p)
 {
-  printf("Child\n");
+	printf("Child age: %d\n", p.age);
 }
 
-int main(void) 
+void PrintDerived(Parent p)
 {
-  Parent p;
-  ConstructVTableForTypeNoParent((Class*)&p, 1);
-  SetOrOverrideMethod((Class*)&p, 0, PrintParent);
-  CallVirtual((Class*)&p, 0);
-  // Child
-  Child c;
-  ConstructVTableForTypeWithParent((Class*)&c, (Class*)&p, 0);
-  SetOrOverrideMethod((Class*)&c, 0, PrintChild);
-  CallVirtual((Class*)(Parent*)&c, 0);
-  return 0;
+	printf("Derived age: %d\n", p.age);
 }
 
+int main(void)
+{
+	printf("Testing virtual table creation...\n");
+
+	Parent p;
+	p.age = 100;
+	ConstructVTableForTypeNoParent(BASE_PTR(p), 1);
+	SetOrOverrideMethodAndBind(BASE_PTR(p), 0, PrintParent, STUB_PTR(p.speak));
+	p.speak(p);
+
+	// Child
+	Child c;
+	ConstructVTableForTypeWithParent(BASE_PTR(c), BASE_PTR(p), 0, sizeof(Parent));
+	SetOrOverrideMethodAndBindMirror(BASE_PTR(p), 0, PrintChild, STUB_PTR(c.parent.speak), STUB_PTR(c.speak));
+	c.parent.age = 10;
+	c.speak(c);
+
+	// Derived
+	Derived d;
+	ConstructVTableForTypeWithParent(BASE_PTR(d), BASE_PTR(c), 0, sizeof(Child));
+	SetOrOverrideMethodAndBindMirror(BASE_PTR(c), 0, PrintDerived, STUB_PTR(d.parent.parent.speak), STUB_PTR(d.speak));
+	d.parent.parent.age = 1;
+	d.speak(d);
+
+	assert((char*)&p + sizeof(p) <= (char*)&c 
+		&& (char*)&c + sizeof(d) <= (char*)&d);
+
+	printf("Testing polymorphism from highest level [Parent]...\n");
+
+	Parent* pParentCastParent = UP_CAST_PTR(p, Parent);
+	pParentCastParent->speak(p);
+	Parent* pChildCastParent = UP_CAST_PTR(c, Parent);
+	pChildCastParent->speak(UP_CAST(c, Parent));
+	Parent* pDerivedCastParent = UP_CAST_PTR(d, Parent);
+	pDerivedCastParent->speak(UP_CAST(d, Parent));
+
+	printf("Testing polymorphism from second level [Child]...\n");
+
+	Child* pChildCastChild = UP_CAST_PTR(c, Child);
+	pChildCastParent->speak(UP_CAST(c, Parent));
+	Child* pDerivedCastChild = UP_CAST_PTR(d, Child);
+	pDerivedCastParent->speak(UP_CAST(d, Parent));
+
+	return 0;
+}
