@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <assert.h>
+#include <stdbool.h>
 
 #define CLASS_HEADER Base header;
 #define CLASS_INHERITS(PARENT) PARENT parent;
@@ -14,16 +14,23 @@
 #define STUB_PTR(X) ((Stub*)&X)
 #define UP_CAST(X, TYPE) (*(TYPE*)&X)
 #define UP_CAST_PTR(X, TYPE) ((TYPE*)&X)
-#define REFLECTIVE_FUNC(F)
+#define REFLECTIVE_FUNC(NAME)
 #define ANY_ARGS
 
-typedef struct _Base Base;
-void ConstructVTableForTypeNoParent(Base* pClass, size_t numMethods);
-
-#define CREATE_INIT_NO_PARENT(X, METHOD_NUM) ConstructVTableForTypeNoParent(BASE_PTR(X), METHOD_NUM);
-
 typedef int slot;
+typedef int TableId;
 typedef void(*Stub) (ANY_ARGS);
+typedef struct _Base Base;
+
+Base GetVTableForType(TableId id, size_t numMethods);
+
+
+
+//#define CONSTRUCT(TYPE, METHOD_NUM) (TYPE) GetVTableForType(GetNextTableId(), METHOD_NUM); TODO
+#define GET_TABLE(TYPE, METHOD_NUM) GetVTableForType(GetNextTableId(), METHOD_NUM)
+#define SET_TABLE(ID, TABLE, CLASS) SetVTableForType(ID, TABLE);\
+AssignTable(&CLASS, &TABLE)
+
 typedef struct _VTable
 {
 	size_t size;
@@ -35,18 +42,62 @@ typedef struct _Base
 	VTable table;
 } Base;
 
-void ConstructVTableForTypeNoParent(Base* pClass, size_t numMethods)
+static TableId __currentId = 0;
+static int reSizeNum = 1 << 8;
+static Base* tables = NULL;
+
+TableId GetNextTableId() { return __currentId++;  }
+
+void AssignTable(void* class, Base* table)
 {
-	pClass->table.size = numMethods;
-	pClass->table.methods = (Stub*)malloc(numMethods * sizeof(Stub));
+	memcpy(class, table, sizeof(Base));
 }
 
-void ConstructVTableForTypeWithParent(Base* pEmptyChild, Base* pParentType, size_t newNumMethods, size_t sizeOfParent)
+void EnsureTableArraySize()
 {
-	const size_t size = pParentType->table.size + newNumMethods;
-	ConstructVTableForTypeNoParent(pEmptyChild, size);
-	memcpy(pEmptyChild, pParentType, sizeOfParent);
-	pEmptyChild->table.size = size;
+	if (tables == NULL)
+	{
+		tables = malloc(reSizeNum * sizeof(Base));
+		memset(tables, -1, reSizeNum * sizeof(Base));
+	}
+	if (__currentId == reSizeNum)
+	{
+		reSizeNum <<= 1;
+		tables = realloc(tables, sizeof(Base) * reSizeNum);
+		memset(tables + reSizeNum, -1, reSizeNum * sizeof(Base));
+	}
+}
+
+bool DoesVTableExistForType(TableId id)
+{
+	if (*(int*)&tables[id] != -1) return true;
+	return false;
+}
+
+Base GetVTableForType(TableId id)
+{
+	EnsureTableArraySize();
+	return tables[id];
+}
+
+Base NewVTableForType(TableId id, size_t numMethods)
+{
+
+	EnsureTableArraySize();
+	tables[id].table.methods = malloc(sizeof(Stub) * numMethods);
+	tables[id].table.size = numMethods;
+	return tables[id];
+}
+
+void SetVTableForType(TableId id, Base table)
+{
+	tables[id] = table;
+}
+
+void DestroyVTableForType(TableId id)
+{
+	free(tables[id].table.methods);
+	tables[id].table.size = 0;
 }
 
 void DeconstructVTable(Base* pClass)
@@ -100,45 +151,49 @@ typedef struct _Derived
 
 void PrintParent(Parent p)
 {
-	printf("Parent age: %d\n", p.age);
+	printf("Called from Parent - age: %d\n", p.age);
 }
 
 void PrintChild(Parent p)
 {
-	printf("Child age: %d\n", p.age);
+	printf("Called from Child - age: %d\n", p.age);
 }
 
 void PrintDerived(Parent p)
 {
-	printf("Derived age: %d\n", p.age);
+	printf("Called from Derived - age: %d\n", p.age);
 }
 
 int main(void)
 {
 	printf("Testing virtual table creation...\n");
 
+	// Parent
 	Parent p;
+	const TableId parentId = GetNextTableId();
+	Base pTable = NewVTableForType(parentId, 0);
+	SetOrOverrideMethodAndBind(&pTable, 0, PrintParent, STUB_PTR(p.speak));
+	SET_TABLE(parentId, pTable, p);
 	p.age = 100;
-	ConstructVTableForTypeNoParent(BASE_PTR(p), 1);
-	SetOrOverrideMethodAndBind(BASE_PTR(p), 0, PrintParent, STUB_PTR(p.speak));
 	p.speak(p);
 
 	// Child
 	Child c;
-	ConstructVTableForTypeWithParent(BASE_PTR(c), BASE_PTR(p), 0, sizeof(Parent));
-	SetOrOverrideMethodAndBindMirror(BASE_PTR(p), 0, PrintChild, STUB_PTR(c.parent.speak), STUB_PTR(c.speak));
+	const TableId childId = GetNextTableId();
+	Base cTable = GetVTableForType(parentId);
+	SetOrOverrideMethodAndBindMirror(&pTable, 0, PrintChild, STUB_PTR(c.parent.speak), STUB_PTR(c.speak));
+	SET_TABLE(childId, cTable, c);
 	c.parent.age = 10;
 	c.speak(c);
 
 	// Derived
 	Derived d;
-	ConstructVTableForTypeWithParent(BASE_PTR(d), BASE_PTR(c), 0, sizeof(Child));
-	SetOrOverrideMethodAndBindMirror(BASE_PTR(c), 0, PrintDerived, STUB_PTR(d.parent.parent.speak), STUB_PTR(d.speak));
+	const TableId derivedId = GetNextTableId();
+	Base dTable = GetVTableForType(childId);
+	SetOrOverrideMethodAndBindMirror(&cTable, 0, PrintDerived, STUB_PTR(d.parent.parent.speak), STUB_PTR(d.speak));
+	SET_TABLE(derivedId, dTable, d);
 	d.parent.parent.age = 1;
 	d.speak(d);
-
-	assert((char*)&p + sizeof(p) <= (char*)&c 
-		&& (char*)&c + sizeof(d) <= (char*)&d);
 
 	printf("Testing polymorphism from highest level [Parent]...\n");
 
