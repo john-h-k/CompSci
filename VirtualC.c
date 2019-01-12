@@ -17,6 +17,9 @@
 #define REFLECTIVE_FUNC(F)
 #define ANY_ARGS
 
+struct Base;
+void ConstructVTableForTypeNoParent(struct Base* pClass, size_t numMethods);
+
 #define CREATE_INIT_NO_PARENT(X, METHOD_NUM) ConstructVTableForTypeNoParent(BASE_PTR(X), METHOD_NUM);
 
 typedef int slot;
