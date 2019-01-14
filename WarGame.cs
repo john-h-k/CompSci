@@ -6,6 +6,15 @@ using System.Linq;
 
 namespace Playground
 {
+  static class Program
+  {
+    static void Main()
+    {
+      var game = new WarGame();
+
+      Console.WriteLine(game.RunGame()?.ToString() ?? "Deadlock");
+    }
+  }
 
     internal class WarGame
     {
@@ -36,7 +45,7 @@ namespace Playground
         public Player? RunGame()
         {
             int i = 0;
-            while (ResolveWinner() is null && i < 1000 && _deck1.Count != _deck2.Count)
+            while (ResolveWinner() == null && i < 1000 && _deck1.Count != _deck2.Count)
             {
                 RunTurn();
                 i++;
@@ -92,7 +101,7 @@ namespace Playground
     }
 
     // TODO ace high support
-    internal readonly struct Card
+    internal struct Card
     {
         public enum CardTypes
         {
