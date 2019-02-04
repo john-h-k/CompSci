@@ -32,7 +32,6 @@ extends [mscorlib]System.Object
 
         ldc.i4.0 // - stack depth 2 (int 0, array ref)
         ldelema [mscorlib]System.Byte // get first elem address (index 0) - stack depth 1 (first elem address)
-        conv.u // convert to pointer - stack depth 1 (first elem pointer)
         
         ldarga.s 'val' // load address of 'val' unmanaged type - stack depth 2 (val pointer, first elem pointer)
         ldloc 'size' // - stack depth 3 (size, val pointer, first elem pointer)
@@ -72,7 +71,6 @@ extends [mscorlib]System.Object
 
         ldc.i4.0 // - stack depth 2 (int 0, array ref)
         ldelema [mscorlib]System.Byte // get first elem address (index 0) - stack depth 1 (first elem address)
-        conv.u // convert to pointer - stack depth 1 (first elem pointer)
         
         ldarga.s 'val' // load address of 'val' unmanaged type - stack depth 2 (val pointer, first elem pointer)
         ldloc 'size' // - stack depth 3 (size, val pointer, first elem pointer)
@@ -119,7 +117,6 @@ extends [mscorlib]System.Object
         .maxstack 3
         ldarg.1 // - stack depth 1 (dest pointer)
         ldarg.0 // - stack depth 2 (src ref [in], dest pointer)
-        conv.u // src ref as src pointer - stack depth 2 (src pointer, dest pointer)
         sizeof !!T // - stack depth 2 (size, src pointer, dest pointer)
         cpblk
         // clean stack
