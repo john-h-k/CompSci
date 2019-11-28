@@ -1,4 +1,3 @@
-
 def q1():
     text = """
     I'm Alexi. I love solving difficult problems. I enjoy Professor Layton games, programming, and chess. I have now turned my passion into a business:
@@ -11,14 +10,14 @@ def q1():
 
     I look forward to hearing from you!"""
 
-    sum = 0
+    answer = 0
 
     for char in text:
         char = char.lower()
         if char.isalpha():
-            sum += ord(char) - (ord('a') - 1)
+            answer += ord(char) - (ord('a') - 1)
 
-    print(sum)
+    print(answer)
 
 def q2():
     data = ['2010','2001','0201','0210','0021','0021','1020','2100','1002','2010','0021','0210','1002','0201','2010','2001','0201','0210','0021','0021','1020','2100','1002','2010','0021','0210','1002',
@@ -31,18 +30,17 @@ def q2():
     '1002','1200','0120','1020','1020','0201','0012','2100','0021','0102','0210','0012','2010','2001','2100','2100','1020','2010','2100','0012','2100','2001','2001','2001','0021','0120','1020','0201',
     '0012','2001','2100','0102','0021','1020','2100','1002','2001','0012','0201','2001','1020']
 
-    names = ["alfred", "bertha", "cleo", "david"]
     votes = [0, 0, 0, 0]
-    fallbacks = [0, 0, 0, 0]
     for vote in data:
         votes[vote.index("1")] += 1
-        fallbacks[vote.index("2")] += 1
 
-    del votes[votes.index(max(votes))]
+    ind = votes.index(min(votes))
 
-    sum = [vote + fallback for vote, fallback in zip(votes, fallbacks)]
+    for vote in data:
+        if vote.index("1") == ind:
+            votes[vote.index("2")] += 1
 
-    print(names[sum.index(max(sum))])
+    print(max(votes))
 
 q1()
 q2()
